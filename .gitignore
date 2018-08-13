@@ -1,0 +1,8 @@
+# Virtual Environment
+env
+
+# Notebook checkpoints
+.ipynb_checkpoints
+
+# Local files
+config_local.yaml
