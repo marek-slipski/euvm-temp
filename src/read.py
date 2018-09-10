@@ -2,6 +2,9 @@ import os
 import yaml
 import pandas as pd
 import scipy.io as spi
+import datetime as dt
+import argparse
+import glob
 
 def configinfo(configpath):
     # Open config file to get path to data
@@ -37,24 +40,48 @@ def sav2df(sav,orbno,inout):
     tdf_init['lat'] = sav['location_info'][0][1]
     tdf_init['lon'] = sav['location_info'][0][2]
     tdf_init['lst'] = sav['location_info'][0][3]
+    tdf_init['unixtime'] = sav['location_info'][0][4]
     den_df = pd.DataFrame(sav['density'],columns=['alt_den','density'])
     df = pd.concat([tdf_init,den_df],axis=1) # Full DataFrame
     df['orbit'] = [orbno]*len(df)
     df['inout'] = [inout]*len(df)
+    df['datetime'] = df['unixtime'].apply(dt.datetime.utcfromtimestamp)
     return df
 
 if __name__=='__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--all',action='store',
+                       help='Read in all files and save large df')
+    
+    args = parser.parse_args()
+    
     config = configinfo('config_local.yaml')
     data_path_vr = euvT_vrdir(config['data_path'],1,0)
-    filename = 'temp_888out_v01r00.sav'
+    
+    if not args.all:
+        filename = 'temp_888out_v01r00.sav'
 
-    # Orbit number and Inbound or outbound
-    orb,io = orbIO(data_path_vr+filename)
+        # Orbit number and Inbound or outbound
+        orb,io = orbIO(data_path_vr+filename)
 
-    # read in savfile
-    savobj = spi.readsav(data_path_vr+filename)
+        # read in savfile
+        savobj = spi.readsav(data_path_vr+filename)
 
 
-    newdf = sav2df(savobj,orb,io)
+        newdf = sav2df(savobj,orb,io)
+        print newdf.head()
 
-    print newdf.head()
+    else:
+        alleuvmT = glob.glob(data_path_vr+'*')
+        pieces = []
+        for i,efile in enumerate(alleuvmT):
+            orbno, inout = orbIO(efile)
+            # read in savfile
+            savobj = spi.readsav(efile)
+            df = sav2df(savobj,orbno,inout)
+            pieces.append(df)
+        alldf = pd.concat(pieces).sort_values('orbit')
+        alldf.to_csv(args.all,index=False)
+        print(alldf.head())
+        
+    
